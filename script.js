@@ -9,6 +9,12 @@ const SWORD_SWING_DURATION = 300;
 const SWORD_DAMAGE = 20;
 const PLAYER_MAX_HP = 100;
 
+// Multiplayer settings
+const MULTIPLAYER_ENABLED = true;
+const SERVER_URL = window.location.protocol === 'https:' 
+  ? `wss://${window.location.host}` 
+  : `ws://${window.location.host}`;
+
 // Game state
 const gameState = {
   players: [],
@@ -20,7 +26,10 @@ const gameState = {
     kills: 0,
     deaths: 0,
     score: 0
-  }
+  },
+  isMultiplayer: false,
+  wsConnection: null,
+  playerId: null
 };
 
 // Input handling
@@ -43,6 +52,7 @@ window.addEventListener('resize', resizeCanvas);
 // Player class
 class Player {
   constructor(x, y, isLocal = false, name = null, color = null) {
+    this.id = Date.now().toString() + Math.random();
     this.x = x;
     this.y = y;
     this.isLocal = isLocal;
@@ -102,6 +112,9 @@ class Player {
     this.x = Math.max(this.radius, Math.min(WORLD_WIDTH - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(WORLD_HEIGHT - this.radius, this.y));
 
+    // Handle collisions with other players
+    this.handleCollisions();
+
     // Update swing animation
     if (this.isSwinging) {
       const elapsed = Date.now() - this.swingStartTime;
@@ -114,6 +127,38 @@ class Player {
     if (this.eliminated && Date.now() - this.deathTime > 3000) {
       this.respawn();
     }
+  }
+
+  handleCollisions() {
+    // Check collisions with all other players
+    gameState.players.forEach(other => {
+      if (other !== this && !this.eliminated && !other.eliminated) {
+        const dx = other.x - this.x;
+        const dy = other.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const minDistance = this.radius + other.radius;
+
+        if (distance < minDistance) {
+          // Collision detected - push players apart
+          const angle = Math.atan2(dy, dx);
+          const overlap = minDistance - distance + 1; // Add small buffer
+
+          // Push this player back
+          this.x -= Math.cos(angle) * (overlap / 2);
+          this.y -= Math.sin(angle) * (overlap / 2);
+
+          // Push other player back
+          other.x += Math.cos(angle) * (overlap / 2);
+          other.y += Math.sin(angle) * (overlap / 2);
+
+          // Prevent pushing outside world boundaries
+          this.x = Math.max(this.radius, Math.min(WORLD_WIDTH - this.radius, this.x));
+          this.y = Math.max(this.radius, Math.min(WORLD_HEIGHT - this.radius, this.y));
+          other.x = Math.max(other.radius, Math.min(WORLD_WIDTH - other.radius, other.x));
+          other.y = Math.max(other.radius, Math.min(WORLD_HEIGHT - other.radius, other.y));
+        }
+      }
+    });
   }
 
   swing() {
@@ -278,23 +323,28 @@ function gameLoop() {
   // Update local player
   gameState.localPlayer.update(keys);
 
-  // Simulate AI players
-  gameState.players.forEach(player => {
-    if (!player.isLocal) {
-      // Simple AI movement
-      if (Math.random() < 0.02) {
-        player.vx = (Math.random() - 0.5) * PLAYER_SPEED * 2;
-        player.vy = (Math.random() - 0.5) * PLAYER_SPEED * 2;
-      }
+  if (gameState.isMultiplayer) {
+    // Send input to server
+    sendInputToServer();
+  } else {
+    // Single-player: Simulate AI players
+    gameState.players.forEach(player => {
+      if (!player.isLocal) {
+        // Simple AI movement
+        if (Math.random() < 0.02) {
+          player.vx = (Math.random() - 0.5) * PLAYER_SPEED * 2;
+          player.vy = (Math.random() - 0.5) * PLAYER_SPEED * 2;
+        }
 
-      // Random sword swing
-      if (Math.random() < 0.01 && !player.eliminated) {
-        player.swing();
-      }
+        // Random sword swing
+        if (Math.random() < 0.01 && !player.eliminated) {
+          player.swing();
+        }
 
-      player.update(keys);
-    }
-  });
+        player.update(keys);
+      }
+    });
+  }
 
   // Update camera to follow local player
   updateCamera();
@@ -432,4 +482,127 @@ document.addEventListener('click', () => {
   }
 });
 
-document.addEventListener('DOMContentLoaded', initGame);
+// WebSocket connection for multiplayer
+function initWebSocket() {
+  if (!MULTIPLAYER_ENABLED) {
+    console.log('Multiplayer disabled, starting single-player game');
+    return;
+  }
+
+  try {
+    gameState.wsConnection = new WebSocket(SERVER_URL);
+
+    gameState.wsConnection.onopen = () => {
+      console.log('Connected to multiplayer server');
+      gameState.isMultiplayer = true;
+    };
+
+    gameState.wsConnection.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      handleServerMessage(message);
+    };
+
+    gameState.wsConnection.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      console.log('Falling back to single-player mode');
+      gameState.isMultiplayer = false;
+    };
+
+    gameState.wsConnection.onclose = () => {
+      console.log('Disconnected from server');
+      gameState.isMultiplayer = false;
+    };
+  } catch (err) {
+    console.error('Failed to connect to server:', err);
+    console.log('Starting in single-player mode');
+  }
+}
+
+function handleServerMessage(message) {
+  switch (message.type) {
+    case 'init':
+      gameState.playerId = message.playerId;
+      gameState.players = message.players.map(p => playerFromState(p));
+      gameState.localPlayer = gameState.players.find(p => p.id === message.playerId);
+      if (!gameState.localPlayer) {
+        gameState.localPlayer = gameState.players[0];
+        gameState.localPlayer.isLocal = true;
+      }
+      break;
+
+    case 'gameState':
+      // Update all players from server
+      message.players.forEach(playerState => {
+        let player = gameState.players.find(p => p.id === playerState.id);
+        if (!player) {
+          player = playerFromState(playerState);
+          gameState.players.push(player);
+        }
+        updatePlayerFromState(player, playerState);
+      });
+      break;
+
+    case 'playerJoined':
+      if (!gameState.players.find(p => p.id === message.player.id)) {
+        gameState.players.push(playerFromState(message.player));
+      }
+      break;
+
+    case 'playerLeft':
+      gameState.players = gameState.players.filter(p => p.id !== message.playerId);
+      break;
+
+    case 'playerEliminated':
+      const eliminated = gameState.players.find(p => p.id === message.eliminatedId);
+      const killer = gameState.players.find(p => p.id === message.killedById);
+      if (eliminated && killer) {
+        eliminated.eliminated = true;
+        killer.kills++;
+        if (eliminated.isLocal) {
+          gameState.stats.deaths++;
+          showDeathScreen();
+        }
+      }
+      break;
+  }
+}
+
+function playerFromState(state) {
+  const player = new Player(state.x, state.y, false, state.name);
+  Object.assign(player, state);
+  player.isLocal = state.id === gameState.playerId;
+  return player;
+}
+
+function updatePlayerFromState(player, state) {
+  player.x = state.x;
+  player.y = state.y;
+  player.angle = state.angle;
+  player.hp = state.hp;
+  player.isSwinging = state.isSwinging;
+  player.kills = state.kills;
+  player.eliminated = state.eliminated;
+}
+
+function sendInputToServer() {
+  if (!gameState.isMultiplayer || !gameState.wsConnection) return;
+
+  const input = {
+    left: keys['arrowleft'] || keys['a'],
+    right: keys['arrowright'] || keys['d'],
+    up: keys['arrowup'] || keys['w'],
+    down: keys['arrowdown'] || keys['s'],
+    angle: gameState.localPlayer?.angle || 0,
+    swing: false
+  };
+
+  gameState.wsConnection.send(JSON.stringify({
+    type: 'move',
+    input: input
+  }));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initWebSocket();
+  setTimeout(initGame, 100); // Delay to allow WebSocket to connect
+});

@@ -1,0 +1,16 @@
+{
+  "name": "swordbattle-remix",
+  "version": "1.0.0",
+  "description": "A multiplayer sword battle game inspired by swordbattle.io",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["game", "multiplayer", "websocket"],
+  "author": "Daniil Klimenko",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}
