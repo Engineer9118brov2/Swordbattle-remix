@@ -8,6 +8,7 @@ const PLAYER_SPEED = 5;
 const SWORD_SWING_DURATION = 300;
 const SWORD_DAMAGE = 20;
 const PLAYER_MAX_HP = 100;
+const KNOCKBACK_FORCE = 15; // How far to push on hit
 
 // Multiplayer settings
 const MULTIPLAYER_ENABLED = true;
@@ -70,6 +71,34 @@ class Player {
     this.eliminated = false;
     this.eliminatedBy = null;
     this.deathTime = 0;
+    
+    // Skin system with stat modifiers
+    this.skin = 'warrior'; // Default skin
+    this.skins = {
+      'warrior': { name: 'Warrior', strength: 1.0, endurance: 1.0, speed: 1.0, cost: 0 },
+      'brute': { name: 'Brute', strength: 1.3, endurance: 1.5, speed: 0.8, cost: 500 },
+      'ninja': { name: 'Ninja', strength: 0.9, endurance: 0.8, speed: 1.4, cost: 500 },
+      'tank': { name: 'Tank', strength: 0.8, endurance: 2.0, speed: 0.6, cost: 500 },
+      'phantom': { name: 'Phantom', strength: 1.1, endurance: 0.7, speed: 1.3, cost: 750 }
+    };
+    this.updateSkinStats();
+    this.coins = 0;
+  }
+
+  updateSkinStats() {
+    const skinData = this.skins[this.skin];
+    this.strengthMult = skinData.strength;
+    this.enduranceMult = skinData.endurance;
+    this.speedMult = skinData.speed;
+  }
+
+  setSkin(skinName) {
+    if (this.skins[skinName]) {
+      this.skin = skinName;
+      this.updateSkinStats();
+      return true;
+    }
+    return false;
   }
 
   getRandomColor() {
@@ -122,6 +151,11 @@ class Player {
         this.isSwinging = false;
       }
     }
+
+    // Handle respawn after death (auto-respawn bots after 5 seconds)
+    if (this.eliminated && Date.now() - this.deathTime > 5000) {
+      this.respawn();
+    }
   }
 
   handleCollisions() {
@@ -167,6 +201,26 @@ class Player {
   updateAI() {
     // AI behavior for non-local, non-eliminated players
     if (!this.isLocal && !this.eliminated) {
+      // Apply separation force to avoid clumping
+      let separationX = 0;
+      let separationY = 0;
+      let nearbyCount = 0;
+
+      gameState.players.forEach(other => {
+        if (other !== this && !other.eliminated) {
+          const dx = other.x - this.x;
+          const dy = other.y - this.y;
+          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          // If too close to another player, push away
+          if (distance < 150) {
+            separationX -= (dx / distance) * 2;
+            separationY -= (dy / distance) * 2;
+            nearbyCount++;
+          }
+        }
+      });
+
       // Find nearest alive enemy
       let nearestEnemy = null;
       let nearestDistance = Infinity;
@@ -193,20 +247,20 @@ class Player {
 
         if (distance > minAttackDistance) {
           // Chase if too far
-          this.vx = (dx / distance) * PLAYER_SPEED;
-          this.vy = (dy / distance) * PLAYER_SPEED;
+          this.vx = (dx / distance) * PLAYER_SPEED * this.speedMult;
+          this.vy = (dy / distance) * PLAYER_SPEED * this.speedMult;
         } else if (distance < this.radius + nearestEnemy.radius + 10) {
           // Only retreat if literally touching
-          this.vx = -(dx / distance) * PLAYER_SPEED;
-          this.vy = -(dy / distance) * PLAYER_SPEED;
+          this.vx = -(dx / distance) * PLAYER_SPEED * this.speedMult;
+          this.vy = -(dy / distance) * PLAYER_SPEED * this.speedMult;
         } else {
           // Strafe around enemy - stay in attack range
           if (Math.random() < 0.5) {
-            this.vx = -(dy / distance) * PLAYER_SPEED * 0.7;
-            this.vy = (dx / distance) * PLAYER_SPEED * 0.7;
+            this.vx = -(dy / distance) * PLAYER_SPEED * this.speedMult * 0.7;
+            this.vy = (dx / distance) * PLAYER_SPEED * this.speedMult * 0.7;
           } else {
-            this.vx = (dy / distance) * PLAYER_SPEED * 0.7;
-            this.vy = -(dx / distance) * PLAYER_SPEED * 0.7;
+            this.vx = (dy / distance) * PLAYER_SPEED * this.speedMult * 0.7;
+            this.vy = -(dx / distance) * PLAYER_SPEED * this.speedMult * 0.7;
           }
         }
 
@@ -215,16 +269,22 @@ class Player {
 
         // Attack if close enough
         if (distance < minAttackDistance) {
-          if (!this.isSwinging && Math.random() < 0.12) {
+          if (!this.isSwinging && Math.random() < 0.12 * this.strengthMult) {
             this.swing();
           }
         }
       } else {
         // Patrol randomly if no enemies
         if (Math.random() < 0.02) {
-          this.vx = (Math.random() - 0.5) * PLAYER_SPEED;
-          this.vy = (Math.random() - 0.5) * PLAYER_SPEED;
+          this.vx = (Math.random() - 0.5) * PLAYER_SPEED * this.speedMult;
+          this.vy = (Math.random() - 0.5) * PLAYER_SPEED * this.speedMult;
         }
+      }
+
+      // Apply separation force
+      if (nearbyCount > 0) {
+        this.vx += separationX * 0.5;
+        this.vy += separationY * 0.5;
       }
     }
   }
@@ -253,7 +313,20 @@ class Player {
   }
 
   takeDamage(damage, attacker) {
-    this.hp -= damage;
+    // Apply damage with strength multiplier
+    const actualDamage = damage * attacker.strengthMult;
+    this.hp -= actualDamage;
+    
+    // Apply knockback
+    if (attacker) {
+      const dx = this.x - attacker.x;
+      const dy = this.y - attacker.y;
+      const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+      
+      this.vx = (dx / distance) * KNOCKBACK_FORCE;
+      this.vy = (dy / distance) * KNOCKBACK_FORCE;
+    }
+    
     if (this.hp <= 0) {
       this.eliminate(attacker);
     }
@@ -266,6 +339,10 @@ class Player {
 
     if (killer) {
       killer.kills++;
+      // Give coins to killer
+      const coinReward = 50 + (killer.kills * 10); // More coins for kill streaks
+      killer.coins += coinReward;
+      
       // Grow the killer
       killer.radius *= 1.1; // 10% growth per kill
       killer.maxHp += 20; // Extra HP for each kill
@@ -445,6 +522,8 @@ function updateLeaderboard() {
   document.getElementById('kills').textContent = gameState.stats.kills;
   document.getElementById('deaths').textContent = gameState.stats.deaths;
   document.getElementById('score').textContent = gameState.stats.kills * 10 - gameState.stats.deaths;
+  document.getElementById('coins').textContent = gameState.localPlayer.coins;
+  document.getElementById('skinDisplay').textContent = gameState.localPlayer.skins[gameState.localPlayer.skin].name;
 }
 
 function draw() {
@@ -508,6 +587,68 @@ function showDeathScreen() {
 function hideDeathScreen() {
   document.getElementById('deathScreen').classList.add('hidden');
   gameState.gameActive = true;
+}
+
+// Shop functionality
+function openShop() {
+  document.getElementById('shopModal').classList.remove('hidden');
+  renderShopItems();
+}
+
+function closeShop() {
+  document.getElementById('shopModal').classList.add('hidden');
+}
+
+function renderShopItems() {
+  const container = document.getElementById('shopItems');
+  const player = gameState.localPlayer;
+
+  container.innerHTML = Object.entries(player.skins)
+    .map(([skinKey, skinData]) => {
+      const owned = player.skin === skinKey;
+      const selected = player.skin === skinKey;
+      const canAfford = player.coins >= skinData.cost;
+
+      return `
+        <div class="shop-item ${owned ? 'owned' : ''} ${selected ? 'selected' : ''}">
+          <h3>${skinData.name}</h3>
+          <div class="stats">
+            <div class="stat-line">
+              <span>⚔️ Strength:</span>
+              <span>${(skinData.strength * 100).toFixed(0)}%</span>
+            </div>
+            <div class="stat-line">
+              <span>🛡️ Endurance:</span>
+              <span>${(skinData.endurance * 100).toFixed(0)}%</span>
+            </div>
+            <div class="stat-line">
+              <span>🏃 Speed:</span>
+              <span>${(skinData.speed * 100).toFixed(0)}%</span>
+            </div>
+          </div>
+          <div class="cost">${skinData.cost === 0 ? 'Default' : skinData.cost + ' 🪙'}</div>
+          ${owned ? `
+            <button>${selected ? '✓ Selected' : 'Use'}</button>
+          ` : `
+            <button ${!canAfford ? 'disabled' : ''} onclick="buySkin('${skinKey}')">
+              ${canAfford ? 'Buy' : 'Not Enough'}
+            </button>
+          `}
+        </div>
+      `;
+    })
+    .join('');
+}
+
+function buySkin(skinKey) {
+  const player = gameState.localPlayer;
+  const skinData = player.skins[skinKey];
+
+  if (player.coins >= skinData.cost) {
+    player.coins -= skinData.cost;
+    player.setSkin(skinKey);
+    renderShopItems();
+  }
 }
 
 // Event listeners
@@ -674,6 +815,20 @@ function sendInputToServer() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Setup shop modal
+  const shopBtn = document.getElementById('shopButton');
+  const shopModal = document.getElementById('shopModal');
+  const closeBtn = document.querySelector('.close');
+
+  shopBtn.addEventListener('click', openShop);
+  closeBtn.addEventListener('click', closeShop);
+  
+  shopModal.addEventListener('click', (e) => {
+    if (e.target === shopModal) {
+      closeShop();
+    }
+  });
+
   initWebSocket();
   setTimeout(initGame, 100); // Delay to allow WebSocket to connect
 });

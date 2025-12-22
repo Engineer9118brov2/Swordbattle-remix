@@ -116,3 +116,152 @@ body, html {
   font-size: 1.2em;
   opacity: 0.9;
 }
+
+.shop-btn {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background-color: #00d4ff;
+  color: #1a1a2e;
+  border: none;
+  padding: 12px 20px;
+  font-size: 1.1em;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  z-index: 99;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.shop-btn:hover {
+  background-color: #00f0ff;
+  transform: scale(1.05);
+}
+
+.modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background-color: #16213e;
+  padding: 30px;
+  border-radius: 15px;
+  border: 2px solid #00d4ff;
+  max-width: 700px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+}
+
+.close {
+  color: #00d4ff;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.close:hover {
+  color: #ff006e;
+}
+
+.modal-content h2 {
+  color: #00d4ff;
+  margin-bottom: 20px;
+  text-align: center;
+  clear: both;
+}
+
+.shop-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.shop-item {
+  background-color: rgba(0, 212, 255, 0.1);
+  border: 2px solid #00d4ff;
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shop-item:hover {
+  background-color: rgba(0, 212, 255, 0.2);
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 212, 255, 0.3);
+}
+
+.shop-item.owned {
+  border-color: #52D273;
+  background-color: rgba(82, 210, 115, 0.1);
+}
+
+.shop-item.selected {
+  border-color: #FFD700;
+  background-color: rgba(255, 215, 0, 0.2);
+}
+
+.shop-item h3 {
+  color: #00d4ff;
+  margin-bottom: 8px;
+  font-size: 1.2em;
+}
+
+.shop-item .stats {
+  font-size: 0.85em;
+  color: #aaa;
+  margin: 8px 0;
+  text-align: left;
+}
+
+.shop-item .stat-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0;
+}
+
+.shop-item .cost {
+  margin-top: 10px;
+  font-weight: bold;
+  color: #FFD700;
+  font-size: 1.1em;
+}
+
+.shop-item button {
+  margin-top: 10px;
+  padding: 8px 15px;
+  background-color: #00d4ff;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.shop-item button:hover {
+  background-color: #00f0ff;
+}
+
+.shop-item button:disabled {
+  background-color: #666;
+  color: #999;
+  cursor: not-allowed;
+}
