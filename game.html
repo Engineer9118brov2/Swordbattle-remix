@@ -7,12 +7,25 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="split-screen">
-        <div class="left-half"></div>
-        <div class="right-half"></div>
-    </div>
-    <div id="player">
-        <img id="sword" src="sword.png" alt="Sword">
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui">
+            <div id="leaderboard">
+                <h3>Leaderboard</h3>
+                <ol id="leaderboardList"></ol>
+            </div>
+            <div id="stats">
+                <div>Kills: <span id="kills">0</span></div>
+                <div>Deaths: <span id="deaths">0</span></div>
+                <div>Score: <span id="score">0</span></div>
+            </div>
+        </div>
+        <div id="deathScreen" class="hidden">
+            <div class="deathMessage">
+                <h2>You were eliminated!</h2>
+                <p>Press SPACE or click to respawn</p>
+            </div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>

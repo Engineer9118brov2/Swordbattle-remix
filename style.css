@@ -1,57 +1,118 @@
-body, html {
+* {
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Prevents scrolling */
-  height: 100%;
+  box-sizing: border-box;
 }
 
-.split-screen {
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #1a1a2e;
+  font-family: 'Arial', sans-serif;
+  color: #ffffff;
+}
+
+#gameContainer {
   position: relative;
   width: 100%;
   height: 100%;
 }
 
-.left-half {
+#gameCanvas {
+  display: block;
+  background-color: #16213e;
+  cursor: crosshair;
+}
+
+#ui {
   position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 20px;
+  z-index: 100;
+}
+
+#leaderboard {
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 15px;
+  border-radius: 8px;
+  min-width: 200px;
+  border: 2px solid #00d4ff;
+}
+
+#leaderboard h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 1.1em;
+  color: #00d4ff;
+}
+
+#leaderboardList {
+  list-style-position: inside;
+  font-size: 0.9em;
+}
+
+#leaderboardList li {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#leaderboardList li:last-child {
+  border-bottom: none;
+}
+
+#stats {
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 15px;
+  border-radius: 8px;
+  border: 2px solid #ff006e;
+  min-width: 150px;
+}
+
+#stats div {
+  padding: 5px 0;
+  font-size: 1em;
+}
+
+#stats span {
+  color: #00d4ff;
+  font-weight: bold;
+}
+
+#deathScreen {
+  position: absolute;
+  top: 0;
   left: 0;
-  width: 50%;
+  width: 100%;
   height: 100%;
-  background-color: blue;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 
-.right-half {
-  position: absolute;
-  right: 0;
-  width: 50%;
-  height: 100%;
-  background-color: red;
+#deathScreen.hidden {
+  display: none;
 }
 
-#player {
-  position: absolute;
-  width: 100px;
-  height: 100px;
-  background-color: #fffb8f; 
-  border-radius: 50%; /* Makes it a circle */
-  border-color: black;
-  left: 20px;
-  top: 20px;
-  transform-origin: center; /* Ensure rotation is around the center */
-  transition: transform 0.1s; /* Optional: Smooths out rotation changes */
+.deathMessage {
+  background-color: #ff006e;
+  padding: 40px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(255, 0, 110, 0.5);
 }
 
-#sword {
-  position: absolute;
-  width: 100px; /* Adjust as needed */
-  right: -50px; /* Adjust for sword positioning */
-  top: 50px; /* Adjust for sword positioning */
-  transform-origin: center; /* Adjust if needed to get the desired rotation effect */
-  transform: rotate(50deg); /* Rotates the image an additional 135 degrees to achieve a total of 180 degrees from the start */
-  transition: transform 0.3s ease;
+.deathMessage h2 {
+  font-size: 2.5em;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-@keyframes swingSword {
-  0% { transform: rotate(0deg) translate(-20px) rotate(0deg); }
-  50% { transform: rotate(80deg) translate(-20px) rotate(-80deg); }
-  100% { transform: rotate(180deg) translate(-20px) rotate(-180deg); }
+.deathMessage p {
+  font-size: 1.2em;
+  opacity: 0.9;
 }
