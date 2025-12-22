@@ -122,11 +122,6 @@ class Player {
         this.isSwinging = false;
       }
     }
-
-    // Handle respawn after death
-    if (this.eliminated && Date.now() - this.deathTime > 3000) {
-      this.respawn();
-    }
   }
 
   handleCollisions() {
@@ -169,6 +164,71 @@ class Player {
     }
   }
 
+  updateAI() {
+    // AI behavior for non-local, non-eliminated players
+    if (!this.isLocal && !this.eliminated) {
+      // Find nearest alive enemy
+      let nearestEnemy = null;
+      let nearestDistance = Infinity;
+
+      gameState.players.forEach(other => {
+        if (other !== this && !other.eliminated) {
+          const dx = other.x - this.x;
+          const dy = other.y - this.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestEnemy = other;
+          }
+        }
+      });
+
+      if (nearestEnemy) {
+        // Chase enemy
+        const dx = nearestEnemy.x - this.x;
+        const dy = nearestEnemy.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const targetDistance = 150; // Try to maintain this distance
+
+        if (distance > targetDistance) {
+          // Chase if too far
+          this.vx = (dx / distance) * PLAYER_SPEED;
+          this.vy = (dy / distance) * PLAYER_SPEED;
+        } else if (distance < 80) {
+          // Retreat if too close
+          this.vx = -(dx / distance) * PLAYER_SPEED;
+          this.vy = -(dy / distance) * PLAYER_SPEED;
+        } else {
+          // Strafe around enemy
+          if (Math.random() < 0.5) {
+            this.vx = -(dy / distance) * PLAYER_SPEED * 0.7;
+            this.vy = (dx / distance) * PLAYER_SPEED * 0.7;
+          } else {
+            this.vx = (dy / distance) * PLAYER_SPEED * 0.7;
+            this.vy = -(dx / distance) * PLAYER_SPEED * 0.7;
+          }
+        }
+
+        // Update angle to face enemy
+        this.angle = Math.atan2(dy, dx);
+
+        // Attack if close enough
+        if (distance < PLAYER_RADIUS + SWORD_LENGTH + 50) {
+          if (!this.isSwinging && Math.random() < 0.08) {
+            this.swing();
+          }
+        }
+      } else {
+        // Patrol randomly if no enemies
+        if (Math.random() < 0.02) {
+          this.vx = (Math.random() - 0.5) * PLAYER_SPEED;
+          this.vy = (Math.random() - 0.5) * PLAYER_SPEED;
+        }
+      }
+    }
+  }
+
   checkSwordCollisions() {
     // Check collision with other players
     gameState.players.forEach(other => {
@@ -204,9 +264,16 @@ class Player {
     this.deathTime = Date.now();
     this.eliminatedBy = killer;
 
-    if (killer && killer.isLocal) {
-      gameState.stats.kills++;
+    if (killer) {
       killer.kills++;
+      // Grow the killer
+      killer.radius *= 1.1; // 10% growth per kill
+      killer.maxHp += 20; // Extra HP for each kill
+      killer.hp = killer.maxHp;
+
+      if (killer.isLocal) {
+        gameState.stats.kills++;
+      }
     }
 
     if (this.isLocal) {
@@ -330,17 +397,9 @@ function gameLoop() {
     // Single-player: Simulate AI players
     gameState.players.forEach(player => {
       if (!player.isLocal) {
-        // Simple AI movement
-        if (Math.random() < 0.02) {
-          player.vx = (Math.random() - 0.5) * PLAYER_SPEED * 2;
-          player.vy = (Math.random() - 0.5) * PLAYER_SPEED * 2;
-        }
-
-        // Random sword swing
-        if (Math.random() < 0.01 && !player.eliminated) {
-          player.swing();
-        }
-
+        // Update AI
+        player.updateAI();
+        // Update player
         player.update(keys);
       }
     });
@@ -457,9 +516,10 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === ' ' || e.key === 'Spacebar') {
     e.preventDefault();
-    if (gameState.localPlayer.eliminated) {
+    if (gameState.localPlayer && gameState.localPlayer.eliminated) {
       gameState.localPlayer.respawn();
-    } else {
+      hideDeathScreen();
+    } else if (gameState.localPlayer) {
       gameState.localPlayer.swing();
     }
   }
@@ -475,10 +535,13 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('click', () => {
-  if (gameState.localPlayer.eliminated) {
-    gameState.localPlayer.respawn();
-  } else {
-    gameState.localPlayer.swing();
+  if (gameState.localPlayer) {
+    if (gameState.localPlayer.eliminated) {
+      gameState.localPlayer.respawn();
+      hideDeathScreen();
+    } else {
+      gameState.localPlayer.swing();
+    }
   }
 });
 
@@ -557,7 +620,13 @@ function handleServerMessage(message) {
       const killer = gameState.players.find(p => p.id === message.killedById);
       if (eliminated && killer) {
         eliminated.eliminated = true;
-        killer.kills++;
+        // Update killer's state from server
+        if (message.killerState) {
+          killer.kills = message.killerState.kills;
+          killer.radius = message.killerState.radius;
+          killer.maxHp = message.killerState.maxHp;
+          killer.hp = message.killerState.hp;
+        }
         if (eliminated.isLocal) {
           gameState.stats.deaths++;
           showDeathScreen();
@@ -579,6 +648,8 @@ function updatePlayerFromState(player, state) {
   player.y = state.y;
   player.angle = state.angle;
   player.hp = state.hp;
+  player.maxHp = state.maxHp;
+  player.radius = state.radius;
   player.isSwinging = state.isSwinging;
   player.kills = state.kills;
   player.eliminated = state.eliminated;

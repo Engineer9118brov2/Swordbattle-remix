@@ -67,6 +67,7 @@ class GamePlayer {
     this.angle = 0;
     this.hp = PLAYER_MAX_HP;
     this.maxHp = PLAYER_MAX_HP;
+    this.radius = PLAYER_RADIUS;
     this.isSwinging = false;
     this.swingStartTime = 0;
     this.kills = 0;
@@ -111,8 +112,8 @@ class GamePlayer {
       this.y += this.vy;
 
       // Boundary checking
-      this.x = Math.max(PLAYER_RADIUS, Math.min(WORLD_WIDTH - PLAYER_RADIUS, this.x));
-      this.y = Math.max(PLAYER_RADIUS, Math.min(WORLD_HEIGHT - PLAYER_RADIUS, this.y));
+      this.x = Math.max(this.radius, Math.min(WORLD_WIDTH - this.radius, this.x));
+      this.y = Math.max(this.radius, Math.min(WORLD_HEIGHT - this.radius, this.y));
 
       // Handle sword swing
       if (inputData.swing && !this.isSwinging) {
@@ -127,6 +128,14 @@ class GamePlayer {
     }
   }
 
+  addKill() {
+    this.kills++;
+    // Grow with each kill
+    this.radius *= 1.1;
+    this.maxHp += 20;
+    this.hp = this.maxHp;
+  }
+
   getState() {
     return {
       id: this.id,
@@ -136,6 +145,7 @@ class GamePlayer {
       angle: this.angle,
       hp: this.hp,
       maxHp: this.maxHp,
+      radius: this.radius,
       isSwinging: this.isSwinging,
       kills: this.kills,
       eliminated: this.eliminated,
@@ -223,7 +233,7 @@ function checkSwordCollisions(attacker) {
       const dy = defender.y - attacker.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance < PLAYER_RADIUS + SWORD_LENGTH) {
+      if (distance < attacker.radius + SWORD_LENGTH) {
         const angleToOther = Math.atan2(dy, dx);
         const angleDiff = Math.abs(angleToOther - attacker.angle);
 
@@ -232,12 +242,13 @@ function checkSwordCollisions(attacker) {
           if (defender.hp <= 0) {
             defender.eliminated = true;
             defender.eliminatedBy = attacker.id;
-            attacker.kills++;
+            attacker.addKill();
 
             broadcast({
               type: 'playerEliminated',
               eliminatedId: defender.id,
-              killedById: attacker.id
+              killedById: attacker.id,
+              killerState: attacker.getState()
             });
           }
         }
