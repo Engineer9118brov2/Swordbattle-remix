@@ -134,17 +134,17 @@ class Player {
         const minDistance = this.radius + other.radius;
 
         if (distance < minDistance) {
-          // Collision detected - push players apart
+          // Collision detected - push players apart slightly
           const angle = Math.atan2(dy, dx);
-          const overlap = minDistance - distance + 1; // Add small buffer
+          const overlap = minDistance - distance + 0.5; // Reduced overlap buffer
 
           // Push this player back
-          this.x -= Math.cos(angle) * (overlap / 2);
-          this.y -= Math.sin(angle) * (overlap / 2);
+          this.x -= Math.cos(angle) * (overlap / 3); // Reduce push force
+          this.y -= Math.sin(angle) * (overlap / 3);
 
           // Push other player back
-          other.x += Math.cos(angle) * (overlap / 2);
-          other.y += Math.sin(angle) * (overlap / 2);
+          other.x += Math.cos(angle) * (overlap / 3);
+          other.y += Math.sin(angle) * (overlap / 3);
 
           // Prevent pushing outside world boundaries
           this.x = Math.max(this.radius, Math.min(WORLD_WIDTH - this.radius, this.x));
@@ -189,18 +189,18 @@ class Player {
         const dx = nearestEnemy.x - this.x;
         const dy = nearestEnemy.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const targetDistance = 150; // Try to maintain this distance
+        const minAttackDistance = this.radius + nearestEnemy.radius + SWORD_LENGTH + 10;
 
-        if (distance > targetDistance) {
+        if (distance > minAttackDistance) {
           // Chase if too far
           this.vx = (dx / distance) * PLAYER_SPEED;
           this.vy = (dy / distance) * PLAYER_SPEED;
-        } else if (distance < 80) {
-          // Retreat if too close
+        } else if (distance < this.radius + nearestEnemy.radius + 10) {
+          // Only retreat if literally touching
           this.vx = -(dx / distance) * PLAYER_SPEED;
           this.vy = -(dy / distance) * PLAYER_SPEED;
         } else {
-          // Strafe around enemy
+          // Strafe around enemy - stay in attack range
           if (Math.random() < 0.5) {
             this.vx = -(dy / distance) * PLAYER_SPEED * 0.7;
             this.vy = (dx / distance) * PLAYER_SPEED * 0.7;
@@ -214,8 +214,8 @@ class Player {
         this.angle = Math.atan2(dy, dx);
 
         // Attack if close enough
-        if (distance < PLAYER_RADIUS + SWORD_LENGTH + 50) {
-          if (!this.isSwinging && Math.random() < 0.08) {
+        if (distance < minAttackDistance) {
+          if (!this.isSwinging && Math.random() < 0.12) {
             this.swing();
           }
         }
