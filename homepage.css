@@ -22,7 +22,7 @@ h1 {
   margin: 0 0 20px 0;
 }
 
-button {
+button, .play-btn, .shop-btn {
   background-color: #61dafb;
   border: 0;
   border-radius: 5px;
@@ -30,11 +30,14 @@ button {
   color: #282c34;
   font-size: 1.2em;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, transform 0.2s;
+  margin: 10px 5px;
+  display: inline-block;
 }
 
-button:hover {
+button:hover, .play-btn:hover, .shop-btn:hover {
   background-color: #4fa8d8;
+  transform: scale(1.05);
 }
 
 select {

@@ -9,6 +9,9 @@ const SWORD_SWING_DURATION = 300;
 const SWORD_DAMAGE = 20;
 const PLAYER_MAX_HP = 100;
 const KNOCKBACK_FORCE = 15; // How far to push on hit
+const DASH_SPEED = 15; // Speed multiplier during dash
+const DASH_DURATION = 300; // How long dash lasts in ms
+const DASH_COOLDOWN = 3000; // Cooldown between dashes
 
 // Multiplayer settings
 const MULTIPLAYER_ENABLED = true;
@@ -72,6 +75,15 @@ class Player {
     this.eliminatedBy = null;
     this.deathTime = 0;
     
+    // Dash mechanics
+    this.isDashing = false;
+    this.dashStartTime = 0;
+    this.lastDashTime = 0;
+    
+    // Swing cooldown for bots
+    this.lastSwingTime = 0;
+    this.swingCooldown = 500; // Minimum time between swings
+    
     // Skin system with stat modifiers
     this.skin = 'warrior'; // Default skin
     this.skins = {
@@ -134,6 +146,19 @@ class Player {
       this.angle = Math.atan2(dy, dx);
     }
 
+    // Apply dash boost if dashing
+    if (this.isDashing) {
+      const elapsedDash = Date.now() - this.dashStartTime;
+      if (elapsedDash < DASH_DURATION) {
+        const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 1;
+        const dashMult = DASH_SPEED / PLAYER_SPEED;
+        this.vx *= dashMult;
+        this.vy *= dashMult;
+      } else {
+        this.isDashing = false;
+      }
+    }
+
     // Update position with world boundaries
     this.x += this.vx;
     this.y += this.vy;
@@ -191,10 +216,19 @@ class Player {
   }
 
   swing() {
-    if (!this.isSwinging) {
+    if (!this.isSwinging && Date.now() - this.lastSwingTime > this.swingCooldown) {
       this.isSwinging = true;
       this.swingStartTime = Date.now();
+      this.lastSwingTime = Date.now();
       this.checkSwordCollisions();
+    }
+  }
+
+  dash() {
+    if (!this.isDashing && Date.now() - this.lastDashTime > DASH_COOLDOWN) {
+      this.isDashing = true;
+      this.dashStartTime = Date.now();
+      this.lastDashTime = Date.now();
     }
   }
 
@@ -267,9 +301,14 @@ class Player {
         // Update angle to face enemy
         this.angle = Math.atan2(dy, dx);
 
-        // Attack if close enough
+        // Dash away if low on health
+        if (this.hp < this.maxHp * 0.5 && Date.now() - this.lastDashTime > DASH_COOLDOWN) {
+          this.dash();
+        }
+
+        // Attack if close enough - reduced spam frequency
         if (distance < minAttackDistance) {
-          if (!this.isSwinging && Math.random() < 0.12 * this.strengthMult) {
+          if (Math.random() < 0.05 * this.strengthMult) { // Reduced from 0.12
             this.swing();
           }
         }
@@ -399,7 +438,7 @@ class Player {
       ctx.fillRect(screenX - barWidth / 2, screenY - this.radius - 12, barWidth * hpPercent, barHeight);
     }
 
-    // Draw sword
+    // Draw sword with skin color
     const swordX = screenX + Math.cos(this.angle) * (this.radius + SWORD_LENGTH / 2);
     const swordY = screenY + Math.sin(this.angle) * (this.radius + SWORD_LENGTH / 2);
 
@@ -411,15 +450,26 @@ class Player {
       swingAngle = Math.sin(progress * Math.PI) * (Math.PI / 3);
     }
 
+    // Get sword color based on skin
+    const swordColors = {
+      'warrior': { blade: '#FFD700', tip: '#FFA500' },
+      'brute': { blade: '#FF6B6B', tip: '#CC0000' },
+      'ninja': { blade: '#333333', tip: '#000000' },
+      'tank': { blade: '#87CEEB', tip: '#4169E1' },
+      'phantom': { blade: '#9370DB', tip: '#6A0DAD' }
+    };
+    const swordColor = swordColors[this.skin] || swordColors['warrior'];
+
     ctx.save();
     ctx.translate(swordX, swordY);
     ctx.rotate(this.angle + swingAngle);
 
-    ctx.fillStyle = '#FFD700';
+    // Draw blade
+    ctx.fillStyle = swordColor.blade;
     ctx.fillRect(-SWORD_WIDTH / 2, 0, SWORD_WIDTH, SWORD_LENGTH);
 
     // Sword tip
-    ctx.fillStyle = '#FFA500';
+    ctx.fillStyle = swordColor.tip;
     ctx.beginPath();
     ctx.moveTo(-SWORD_WIDTH / 2, SWORD_LENGTH);
     ctx.lineTo(SWORD_WIDTH / 2, SWORD_LENGTH);
@@ -427,6 +477,16 @@ class Player {
     ctx.fill();
 
     ctx.restore();
+
+    // Draw dash effect
+    if (this.isDashing) {
+      const elapsed = Date.now() - this.dashStartTime;
+      const opacity = Math.max(0, 1 - (elapsed / DASH_DURATION));
+      ctx.fillStyle = `rgba(0, 212, 255, ${opacity * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.radius * 1.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Draw player name
     ctx.fillStyle = '#fff';
@@ -589,68 +649,6 @@ function hideDeathScreen() {
   gameState.gameActive = true;
 }
 
-// Shop functionality
-function openShop() {
-  document.getElementById('shopModal').classList.remove('hidden');
-  renderShopItems();
-}
-
-function closeShop() {
-  document.getElementById('shopModal').classList.add('hidden');
-}
-
-function renderShopItems() {
-  const container = document.getElementById('shopItems');
-  const player = gameState.localPlayer;
-
-  container.innerHTML = Object.entries(player.skins)
-    .map(([skinKey, skinData]) => {
-      const owned = player.skin === skinKey;
-      const selected = player.skin === skinKey;
-      const canAfford = player.coins >= skinData.cost;
-
-      return `
-        <div class="shop-item ${owned ? 'owned' : ''} ${selected ? 'selected' : ''}">
-          <h3>${skinData.name}</h3>
-          <div class="stats">
-            <div class="stat-line">
-              <span>⚔️ Strength:</span>
-              <span>${(skinData.strength * 100).toFixed(0)}%</span>
-            </div>
-            <div class="stat-line">
-              <span>🛡️ Endurance:</span>
-              <span>${(skinData.endurance * 100).toFixed(0)}%</span>
-            </div>
-            <div class="stat-line">
-              <span>🏃 Speed:</span>
-              <span>${(skinData.speed * 100).toFixed(0)}%</span>
-            </div>
-          </div>
-          <div class="cost">${skinData.cost === 0 ? 'Default' : skinData.cost + ' 🪙'}</div>
-          ${owned ? `
-            <button>${selected ? '✓ Selected' : 'Use'}</button>
-          ` : `
-            <button ${!canAfford ? 'disabled' : ''} onclick="buySkin('${skinKey}')">
-              ${canAfford ? 'Buy' : 'Not Enough'}
-            </button>
-          `}
-        </div>
-      `;
-    })
-    .join('');
-}
-
-function buySkin(skinKey) {
-  const player = gameState.localPlayer;
-  const skinData = player.skins[skinKey];
-
-  if (player.coins >= skinData.cost) {
-    player.coins -= skinData.cost;
-    player.setSkin(skinKey);
-    renderShopItems();
-  }
-}
-
 // Event listeners
 document.addEventListener('keydown', (e) => {
   keys[e.key.toLowerCase()] = true;
@@ -663,6 +661,12 @@ document.addEventListener('keydown', (e) => {
     } else if (gameState.localPlayer) {
       gameState.localPlayer.swing();
     }
+  }
+
+  // Dash on Shift
+  if (e.key === 'Shift' && gameState.localPlayer) {
+    e.preventDefault();
+    gameState.localPlayer.dash();
   }
 });
 
@@ -815,20 +819,6 @@ function sendInputToServer() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Setup shop modal
-  const shopBtn = document.getElementById('shopButton');
-  const shopModal = document.getElementById('shopModal');
-  const closeBtn = document.querySelector('.close');
-
-  shopBtn.addEventListener('click', openShop);
-  closeBtn.addEventListener('click', closeShop);
-  
-  shopModal.addEventListener('click', (e) => {
-    if (e.target === shopModal) {
-      closeShop();
-    }
-  });
-
   initWebSocket();
   setTimeout(initGame, 100); // Delay to allow WebSocket to connect
 });
