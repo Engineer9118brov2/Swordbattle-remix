@@ -1,14 +1,14 @@
-// Game constants
+// Game constants - Matching original swordbattle.io specifications
 const WORLD_WIDTH = 2000;
 const WORLD_HEIGHT = 2000;
-const PLAYER_RADIUS = 25;
-const SWORD_LENGTH = 60;
-const SWORD_WIDTH = 12;
-const PLAYER_SPEED = 5;
-const SWORD_SWING_DURATION = 300;
-const SWORD_DAMAGE = 20;
-const PLAYER_MAX_HP = 100;
-const KNOCKBACK_FORCE = 15; // How far to push on hit
+const PLAYER_RADIUS = 100; // Original: 100 (was 25)
+const SWORD_LENGTH = 70; // Adjusted proportionally (was 60)
+const SWORD_WIDTH = 14; // Adjusted proportionally (was 12)
+const PLAYER_SPEED = 12; // Original: 770 pixels/update (was 5, converting to game scale)
+const SWORD_SWING_DURATION = 100; // Original: 0.1s (was 300ms)
+const SWORD_DAMAGE = 10; // Original: 10 (was 20)
+const PLAYER_MAX_HP = 80; // Original: 80 (was 100)
+const KNOCKBACK_FORCE = 20; // Original: 200 force (was 15, scaling to 80hp base)
 const DASH_SPEED = 15; // Speed multiplier during dash
 const DASH_DURATION = 300; // How long dash lasts in ms
 const DASH_COOLDOWN = 3000; // Cooldown between dashes
@@ -329,9 +329,9 @@ class Player {
   }
 
   checkSwordCollisions() {
-    // Check collision with other players
+    // Check collision with other players' BODIES only (not their swords)
     gameState.players.forEach(other => {
-      if (other !== this && !other.eliminated) {
+      if (other !== this && !other.eliminated && !other.isSwinging) {
         const dx = other.x - this.x;
         const dy = other.y - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -394,6 +394,9 @@ class Player {
 
     if (this.isLocal) {
       gameState.stats.deaths++;
+      // Lose coins on death (20% penalty)
+      const coinLoss = Math.floor(this.coins * 0.2);
+      this.coins = Math.max(0, this.coins - coinLoss);
       showDeathScreen();
     }
   }
@@ -505,10 +508,44 @@ class Player {
   }
 }
 
+// Show name modal on startup
+function showNameModal() {
+  const modal = document.getElementById('nameModal');
+  const input = document.getElementById('nameInput');
+  const confirmBtn = document.getElementById('nameConfirm');
+
+  modal.classList.remove('hidden');
+  input.focus();
+
+  const handleConfirm = () => {
+    const name = input.value.trim();
+    if (name.length > 0 && name.length <= 20) {
+      localStorage.setItem('playerName', name);
+      modal.classList.add('hidden');
+      initGame(name);
+    } else {
+      input.style.borderColor = '#ff006e';
+      setTimeout(() => {
+        input.style.borderColor = '#00d4ff';
+      }, 500);
+    }
+  };
+
+  confirmBtn.onclick = handleConfirm;
+  input.onkeypress = (e) => {
+    if (e.key === 'Enter') {
+      handleConfirm();
+    }
+  };
+}
+
 // Initialize game
-function initGame() {
+function initGame(playerName = null) {
+  // Get saved name or use provided name or generate random
+  const savedName = playerName || localStorage.getItem('playerName') || `Player${Math.floor(Math.random() * 10000)}`;
+  
   // Create local player
-  gameState.localPlayer = new Player(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, true, 'You');
+  gameState.localPlayer = new Player(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, true, savedName);
   gameState.players.push(gameState.localPlayer);
 
   // Create AI players for simulation
@@ -820,5 +857,6 @@ function sendInputToServer() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initWebSocket();
-  setTimeout(initGame, 100); // Delay to allow WebSocket to connect
+  // Show name modal first, which will call initGame when confirmed
+  showNameModal();
 });

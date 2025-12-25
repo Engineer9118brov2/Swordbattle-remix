@@ -186,6 +186,62 @@ body, html {
   clear: both;
 }
 
+.name-modal {
+  min-width: 400px;
+  text-align: center;
+}
+
+.name-modal input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: 2px solid #00d4ff;
+  border-radius: 8px;
+  background-color: #0f3460;
+  color: #ffffff;
+  margin-bottom: 15px;
+  box-sizing: border-box;
+}
+
+.name-modal input:focus {
+  outline: none;
+  border-color: #ff006e;
+  box-shadow: 0 0 10px rgba(255, 0, 110, 0.5);
+}
+
+.name-modal input::placeholder {
+  color: #888;
+}
+
+.name-modal button {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffffff;
+  background: linear-gradient(135deg, #00d4ff, #0099ff);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 15px;
+}
+
+.name-modal button:hover {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.6);
+  transform: translateY(-2px);
+}
+
+.name-modal button:active {
+  transform: translateY(0);
+}
+
+.modal-hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 10px;
+}
+
 .shop-items {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
